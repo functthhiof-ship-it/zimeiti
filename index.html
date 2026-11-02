@@ -268,6 +268,19 @@
       // 拆解模态窗
       const [selectedPostForBreakdown, setSelectedPostForBreakdown] = useState(null);
 
+      // 爆款拆解编辑/添加弹窗状态
+      const [postModalOpen, setPostModalOpen] = useState(false);
+      const [editingPost, setEditingPost] = useState(null);
+
+      // 对标账号编辑/添加弹窗状态
+      const [competitorModalOpen, setCompetitorModalOpen] = useState(false);
+      const [editingCompetitor, setEditingCompetitor] = useState(null);
+
+      // 通过账号ID/链接快速导入弹窗状态
+      const [idImportModalOpen, setIdImportModalOpen] = useState(false);
+      const [importAccountIdInput, setImportAccountIdInput] = useState('');
+      const [importPlatformSelect, setImportPlatformSelect] = useState('自动识别');
+
       // 提词器状态
       const [prompterScriptId, setPrompterScriptId] = useState(null);
       const [isPrompterRunning, setIsPrompterRunning] = useState(false);
@@ -367,6 +380,232 @@
           refPostIds: [post.id]
         };
         handleCreateNewScript(preset);
+      };
+
+      // 打开对标账号编辑/添加弹窗
+      const handleOpenCompetitorModal = (comp = null) => {
+        if (comp) {
+          setEditingCompetitor({
+            ...comp,
+            trackTagsStr: comp.trackTags?.join('、') || '',
+            styleTagsStr: comp.styleTags?.join('、') || ''
+          });
+        } else {
+          setEditingCompetitor({
+            id: '',
+            nickname: '',
+            platform: '抖音',
+            homeUrl: '',
+            fans: 10000,
+            totalLikes: 50000,
+            likeFanRatio: 5.0,
+            updateFrequency: '每周3更',
+            trackTagsStr: 'AI视觉、科技数码',
+            level: '核心对标',
+            styleTagsStr: '短平快、高转化',
+            monetization: '商单广告',
+            stage: '起号',
+            isMonitored: true,
+            lastCrawlTime: '刚刚',
+            folder: '默认分组',
+            ratings: { topic: 8.5, hook: 8.5, rhythm: 8.5 },
+            notes: ''
+          });
+        }
+        setCompetitorModalOpen(true);
+      };
+
+      // 通过账号ID或主页链接一键解析添加
+      const handleImportByAccountId = (e) => {
+        e.preventDefault();
+        const input = importAccountIdInput.trim();
+        if (!input) return;
+
+        let detectedPlatform = '抖音';
+        let cleanId = input;
+        let generatedUrl = '';
+
+        // 智能正则判定平台与账号ID/主页
+        if (input.includes('xiaohongshu.com') || input.includes('xhslink.com') || importPlatformSelect === '小红书') {
+          detectedPlatform = '小红书';
+          const match = input.match(/user\/profile\/([a-zA-Z0-9_-]+)/);
+          cleanId = match ? match[1] : input.replace(/https?:\/\/[^\s]+/, '').trim() || input;
+          generatedUrl = input.startsWith('http') ? input : `https://www.xiaohongshu.com/user/profile/${cleanId}`;
+        } else if (input.includes('kuaishou.com') || importPlatformSelect === '快手') {
+          detectedPlatform = '快手';
+          const match = input.match(/profile\/([a-zA-Z0-9_-]+)/);
+          cleanId = match ? match[1] : input.replace(/https?:\/\/[^\s]+/, '').trim() || input;
+          generatedUrl = input.startsWith('http') ? input : `https://www.kuaishou.com/profile/${cleanId}`;
+        } else if (input.includes('bilibili.com') || importPlatformSelect === 'B站') {
+          detectedPlatform = 'B站';
+          const match = input.match(/space\.bilibili\.com\/([0-9]+)/);
+          cleanId = match ? match[1] : input.replace(/\D/g, '') || input;
+          generatedUrl = input.startsWith('http') ? input : `https://space.bilibili.com/${cleanId}`;
+        } else {
+          // 默认为抖音
+          detectedPlatform = importPlatformSelect !== '自动识别' ? importPlatformSelect : '抖音';
+          const match = input.match(/user\/([a-zA-Z0-9_-]+)/);
+          cleanId = match ? match[1] : input.replace(/https?:\/\/[^\s]+/, '').trim() || input;
+          generatedUrl = input.startsWith('http') ? input : `https://www.douyin.com/user/${cleanId}`;
+        }
+
+        // 提取昵称兜底：去除无用前缀
+        const displayNickname = cleanId.length > 20 ? `博主_${cleanId.slice(0, 8)}` : `博主_${cleanId}`;
+
+        // 自动装载入对标库
+        const newComp = {
+          id: 'comp-' + Date.now(),
+          nickname: displayNickname,
+          platform: detectedPlatform,
+          homeUrl: generatedUrl,
+          fans: 50000,
+          totalLikes: 250000,
+          likeFanRatio: 5.0,
+          updateFrequency: '每周3更',
+          trackTags: ['重点关注', '爆款对标'],
+          level: '核心对标',
+          styleTags: ['短平快', '高转化'],
+          monetization: '商单广告 + 知识付费',
+          stage: '起号',
+          isMonitored: true,
+          lastCrawlTime: '刚刚通过ID导入',
+          folder: `${detectedPlatform}对标池`,
+          ratings: { topic: 8.5, hook: 8.5, rhythm: 8.5 },
+          notes: `通过账号ID/主页链接导入：${input}。建议尽快完善账号特色与近期爆款拆解。`
+        };
+
+        setCompetitors([newComp, ...competitors]);
+      };
+
+      // 打开爆款拆解编辑/新建弹窗
+      const handleOpenPostModal = (post = null) => {
+        if (post) {
+          setEditingPost({
+            ...post,
+            tagsStr: post.tags?.join('、') || '',
+            breakdownNotes: post.breakdownNotes || {
+              advantages: '',
+              reusablePoints: '',
+              pitfalls: '',
+              imitationDirection: ''
+            }
+          });
+        } else {
+          setEditingPost({
+            id: '',
+            competitorId: competitors[0]?.id || '',
+            title: '',
+            url: '',
+            cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=60',
+            publishTime: new Date().toISOString().slice(0, 10),
+            duration: '01:30',
+            likes: 10000,
+            collects: 5000,
+            comments: 500,
+            shares: 800,
+            interactRate: 12.0,
+            transcript: '',
+            hookSnippet: '',
+            structure: '【0-5s黄金钩子】→【5-25s痛点证明】→【25-70s干货交付】→【结尾CTA】',
+            breakdownNotes: {
+              advantages: '',
+              reusablePoints: '',
+              pitfalls: '',
+              imitationDirection: ''
+            },
+            tagsStr: '钩子强、适合口播',
+            isUsedForScript: false
+          });
+        }
+        setPostModalOpen(true);
+      };
+
+      // 保存爆款拆解
+      const handleSavePost = (e) => {
+        e.preventDefault();
+        if (!editingPost.title.trim()) return;
+
+        const tags = editingPost.tagsStr
+          ? editingPost.tagsStr.split(/[、,， ]+/).filter(Boolean)
+          : ['爆款拆解'];
+
+        const calculatedInteractRate = editingPost.likes > 0
+          ? Number((((editingPost.likes + editingPost.collects + editingPost.comments + editingPost.shares) / (editingPost.likes * 2.5)) * 10).toFixed(1))
+          : 10.0;
+
+        if (editingPost.id) {
+          // 更新已有作品
+          const updatedPost = {
+            ...editingPost,
+            tags,
+            interactRate: editingPost.interactRate || calculatedInteractRate
+          };
+          setPosts(prev => prev.map(p => p.id === editingPost.id ? updatedPost : p));
+          if (selectedPostForBreakdown?.id === editingPost.id) {
+            setSelectedPostForBreakdown(updatedPost);
+          }
+        } else {
+          // 新增作品
+          const newPost = {
+            ...editingPost,
+            id: 'post-' + Date.now(),
+            tags,
+            interactRate: calculatedInteractRate
+          };
+          setPosts([newPost, ...posts]);
+        }
+        setPostModalOpen(false);
+      };
+
+      // 删除爆款作品
+      const handleDeletePost = (id) => {
+        setPosts(prev => prev.filter(p => p.id !== id));
+        if (selectedPostForBreakdown?.id === id) {
+          setSelectedPostForBreakdown(null);
+        }
+      };
+
+      // 保存对标账号
+      const handleSaveCompetitor = (e) => {
+        e.preventDefault();
+        if (!editingCompetitor.nickname.trim()) return;
+
+        const trackTags = editingCompetitor.trackTagsStr
+          ? editingCompetitor.trackTagsStr.split(/[、,， ]+/).filter(Boolean)
+          : ['自媒体'];
+        const styleTags = editingCompetitor.styleTagsStr
+          ? editingCompetitor.styleTagsStr.split(/[、,， ]+/).filter(Boolean)
+          : ['干货'];
+
+        const calculatedRatio = editingCompetitor.fans > 0 
+          ? Number((editingCompetitor.totalLikes / editingCompetitor.fans).toFixed(2)) 
+          : 0;
+
+        if (editingCompetitor.id) {
+          // 编辑更新
+          setCompetitors(prev => prev.map(c => c.id === editingCompetitor.id ? {
+            ...editingCompetitor,
+            trackTags,
+            styleTags,
+            likeFanRatio: calculatedRatio
+          } : c));
+        } else {
+          // 新增
+          const newComp = {
+            ...editingCompetitor,
+            id: 'comp-' + Date.now(),
+            trackTags,
+            styleTags,
+            likeFanRatio: calculatedRatio
+          };
+          setCompetitors([newComp, ...competitors]);
+        }
+        setCompetitorModalOpen(false);
+      };
+
+      // 删除对标账号
+      const handleDeleteCompetitor = (id) => {
+        setCompetitors(prev => prev.filter(c => c.id !== id));
       };
 
       const handleLaunchPrompter = (scriptId) => {
@@ -906,23 +1145,42 @@
             {/* VIEW 3: COMPETITORS */}
             {activeTab === 'competitors' && (
               <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-bold tracking-tight text-white">对标账号库</h2>
                     <p className="text-xs text-zinc-400 mt-1">沉淀博主档案、赛道、赞粉比与核心能力打分。</p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {['全部', '核心对标', '灵感参考', '次要对标', '避雷账号'].map(lvl => (
-                      <button
-                        key={lvl}
-                        onClick={() => setCompetitorFilterLevel(lvl)}
-                        className={`text-xs px-2.5 py-1 rounded transition ${
-                          competitorFilterLevel === lvl ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        {lvl}
-                      </button>
-                    ))}
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1 text-xs">
+                      {['全部', '核心对标', '灵感参考', '次要对标', '避雷账号'].map(lvl => (
+                        <button
+                          key={lvl}
+                          onClick={() => setCompetitorFilterLevel(lvl)}
+                          className={`px-2.5 py-1 rounded transition ${
+                            competitorFilterLevel === lvl ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setIdImportModalOpen(true)}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center space-x-1 transition"
+                      title="输入抖音号/小红书号/主页链接自动添加"
+                    >
+                      <Icon name="link" className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>通过ID/链接添加</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenCompetitorModal(null)}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow"
+                    >
+                      <Icon name="plus" className="w-3.5 h-3.5" />
+                      <span>手动填写档案</span>
+                    </button>
                   </div>
                 </div>
 
@@ -930,30 +1188,81 @@
                   {competitors
                     .filter(c => competitorFilterLevel === '全部' || c.level === competitorFilterLevel)
                     .map(comp => (
-                      <div key={comp.id} className="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="font-bold text-white text-base mr-2">{comp.nickname}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">{comp.platform}</span>
-                            <div className="text-[11px] text-zinc-500 mt-1">{comp.folder}</div>
+                      <div key={comp.id} className="bg-zinc-900/60 border border-zinc-800/80 rounded-xl p-5 space-y-3 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-white text-base">{comp.nickname}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">{comp.platform}</span>
+                              </div>
+                              <div className="text-[11px] text-zinc-500 mt-1">{comp.folder}</div>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">{comp.level}</span>
                           </div>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">{comp.level}</span>
+
+                          <div className="grid grid-cols-3 gap-2 bg-zinc-950/60 p-2 rounded-lg border border-zinc-800 text-center my-3">
+                            <div>
+                              <div className="text-[10px] text-zinc-500">粉丝数</div>
+                              <div className="text-xs font-bold text-white font-mono">{(comp.fans / 10000).toFixed(1)}w</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-zinc-500">总获赞</div>
+                              <div className="text-xs font-bold text-white font-mono">{(comp.totalLikes / 10000).toFixed(1)}w</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-zinc-500">赞粉比</div>
+                              <div className="text-xs font-bold text-emerald-400 font-mono">{comp.likeFanRatio}</div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 text-xs">
+                            <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                              <span>选题能力:</span>
+                              <span className="font-mono text-zinc-200">{comp.ratings?.topic || 8.0} / 10</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                              <span>文案钩子:</span>
+                              <span className="font-mono text-zinc-200">{comp.ratings?.hook || 8.0} / 10</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                              <span>镜头节奏:</span>
+                              <span className="font-mono text-zinc-200">{comp.ratings?.rhythm || 8.0} / 10</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1 mt-3">
+                            {comp.trackTags?.map((tag, idx) => (
+                              <span key={idx} className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded">
+                                #{tag}
+                              </span>
+                            ))}
+                            {comp.styleTags?.map((tag, idx) => (
+                              <span key={idx} className="text-[10px] bg-emerald-950/40 text-emerald-400 px-2 py-0.5 rounded">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+
+                          <p className="text-[11px] text-zinc-400 bg-zinc-900 p-2.5 rounded-lg border border-zinc-800/60 mt-3">{comp.notes || '暂无备注说明'}</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 bg-zinc-950/60 p-2 rounded-lg border border-zinc-800 text-center">
-                          <div>
-                            <div className="text-[10px] text-zinc-500">粉丝数</div>
-                            <div className="text-xs font-bold text-white font-mono">{(comp.fans / 10000).toFixed(1)}w</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-zinc-500">总获赞</div>
-                            <div className="text-xs font-bold text-white font-mono">{(comp.totalLikes / 10000).toFixed(1)}w</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-zinc-500">赞粉比</div>
-                            <div className="text-xs font-bold text-emerald-400 font-mono">{comp.likeFanRatio}</div>
-                          </div>
+
+                        <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+                          <button
+                            onClick={() => handleOpenCompetitorModal(comp)}
+                            className="text-zinc-400 hover:text-white flex items-center space-x-1"
+                          >
+                            <Icon name="pencil" className="w-3.5 h-3.5" />
+                            <span>编辑博主</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCompetitor(comp.id)}
+                            className="text-rose-400/80 hover:text-rose-400 flex items-center space-x-1"
+                          >
+                            <Icon name="trash-2" className="w-3.5 h-3.5" />
+                            <span>删除</span>
+                          </button>
                         </div>
-                        <p className="text-[11px] text-zinc-400 bg-zinc-900 p-2.5 rounded-lg border border-zinc-800/60">{comp.notes}</p>
                       </div>
                     ))}
                 </div>
@@ -963,23 +1272,33 @@
             {/* VIEW 4: POSTS */}
             {activeTab === 'posts' && (
               <div className="flex-1 overflow-y-auto p-8 max-w-7xl mx-auto w-full space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-bold tracking-tight text-white">爆款拆解库</h2>
                     <p className="text-xs text-zinc-400 mt-1">保存对标视频数据、钩子拆解，并可由对标逆向查看已产出的脚本。</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {['全部', '钩子强', '低粉爆款', '适合口播', '适合画面参考'].map(tag => (
-                      <button
-                        key={tag}
-                        onClick={() => setPostsFilterTag(tag)}
-                        className={`text-xs px-2.5 py-1 rounded transition ${
-                          postsFilterTag === tag ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
+                    <div className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1 text-xs">
+                      {['全部', '钩子强', '低粉爆款', '适合口播', '适合画面参考'].map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => setPostsFilterTag(tag)}
+                          className={`text-xs px-2.5 py-1 rounded transition ${
+                            postsFilterTag === tag ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenPostModal(null)}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center space-x-1 transition shadow"
+                    >
+                      <Icon name="plus" className="w-3.5 h-3.5" />
+                      <span>新建爆款拆解</span>
+                    </button>
                   </div>
                 </div>
 
@@ -998,7 +1317,16 @@
                               <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-[10px] text-zinc-200">@{comp?.nickname}</div>
                             </div>
                             <div className="p-4 space-y-2">
-                              <h3 className="font-semibold text-white text-sm line-clamp-2">{post.title}</h3>
+                              <div className="flex items-start justify-between">
+                                <h3 className="font-semibold text-white text-sm line-clamp-2">{post.title}</h3>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleOpenPostModal(post); }}
+                                  className="text-zinc-400 hover:text-emerald-400 p-1 flex-shrink-0 ml-1"
+                                  title="编辑此拆解"
+                                >
+                                  <Icon name="pencil" className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                               <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2 text-xs">
                                 <span className="text-[10px] text-amber-400 block mb-0.5">🪝 钩子摘录:</span>
                                 <p className="text-zinc-300 text-[11px] line-clamp-2">"{post.hookSnippet}"</p>
@@ -1111,8 +1439,24 @@
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
                 <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-                  <h3 className="font-bold text-white text-sm truncate mr-4">{selectedPostForBreakdown.title}</h3>
-                  <button onClick={() => setSelectedPostForBreakdown(null)} className="p-1 text-zinc-400 hover:text-white">✕</button>
+                  <div className="flex items-center space-x-2 max-w-[80%]">
+                    <Icon name="flame" className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <h3 className="font-bold text-white text-sm truncate">{selectedPostForBreakdown.title}</h3>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        const post = selectedPostForBreakdown;
+                        setSelectedPostForBreakdown(null);
+                        handleOpenPostModal(post);
+                      }}
+                      className="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded flex items-center space-x-1"
+                    >
+                      <Icon name="pencil" className="w-3 h-3" />
+                      <span>编辑此条</span>
+                    </button>
+                    <button onClick={() => setSelectedPostForBreakdown(null)} className="p-1 text-zinc-400 hover:text-white">✕</button>
+                  </div>
                 </div>
                 <div className="p-6 overflow-y-auto space-y-4 text-xs">
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
@@ -1125,6 +1469,24 @@
                       {selectedPostForBreakdown.structure}
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 space-y-1">
+                      <span className="text-emerald-400 font-semibold">✨ 核心优点</span>
+                      <p className="text-zinc-300">{selectedPostForBreakdown.breakdownNotes?.advantages || '暂无'}</p>
+                    </div>
+                    <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 space-y-1">
+                      <span className="text-blue-400 font-semibold">💡 可复用点</span>
+                      <p className="text-zinc-300">{selectedPostForBreakdown.breakdownNotes?.reusablePoints || '暂无'}</p>
+                    </div>
+                    <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 space-y-1">
+                      <span className="text-rose-400 font-semibold">⚠️ 踩坑警告</span>
+                      <p className="text-zinc-300">{selectedPostForBreakdown.breakdownNotes?.pitfalls || '暂无'}</p>
+                    </div>
+                    <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 space-y-1">
+                      <span className="text-purple-400 font-semibold">🎯 仿写方向</span>
+                      <p className="text-zinc-300">{selectedPostForBreakdown.breakdownNotes?.imitationDirection || '暂无'}</p>
+                    </div>
+                  </div>
                   <div>
                     <span className="text-xs font-semibold text-zinc-300">📝 视频逐字稿 (AI转录)</span>
                     <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 text-zinc-300 whitespace-pre-wrap mt-1 max-h-48 overflow-y-auto">
@@ -1132,20 +1494,553 @@
                     </div>
                   </div>
                 </div>
-                <div className="p-4 border-t border-zinc-800 flex items-center justify-end space-x-3">
-                  <button onClick={() => setSelectedPostForBreakdown(null)} className="px-4 py-2 bg-zinc-800 text-zinc-300 text-xs rounded-lg">关闭</button>
+                <div className="p-4 border-t border-zinc-800 flex items-center justify-between">
                   <button
-                    onClick={() => {
-                      const post = selectedPostForBreakdown;
-                      setSelectedPostForBreakdown(null);
-                      handleSpawnScriptFromPost(post);
-                    }}
-                    className="px-4 py-2 bg-emerald-500 text-black font-semibold text-xs rounded-lg"
+                    onClick={() => handleDeletePost(selectedPostForBreakdown.id)}
+                    className="text-rose-400 hover:text-rose-300 text-xs flex items-center space-x-1"
                   >
-                    以该视频为底稿一键仿写
+                    <Icon name="trash-2" className="w-3.5 h-3.5" />
+                    <span>删除拆解</span>
                   </button>
+                  <div className="flex items-center space-x-3">
+                    <button onClick={() => setSelectedPostForBreakdown(null)} className="px-4 py-2 bg-zinc-800 text-zinc-300 text-xs rounded-lg">关闭</button>
+                    <button
+                      onClick={() => {
+                        const post = selectedPostForBreakdown;
+                        setSelectedPostForBreakdown(null);
+                        handleSpawnScriptFromPost(post);
+                      }}
+                      className="px-4 py-2 bg-emerald-500 text-black font-semibold text-xs rounded-lg"
+                    >
+                      以该视频为底稿一键仿写
+                    </button>
+                  </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 爆款拆解编辑 / 新建弹窗 */}
+          {postModalOpen && editingPost && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <form
+                onSubmit={handleSavePost}
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+              >
+                <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
+                  <div className="flex items-center space-x-2">
+                    <Icon name="flame" className="w-4 h-4 text-amber-400" />
+                    <h3 className="font-bold text-white text-sm">
+                      {editingPost.id ? '编辑爆款拆解' : '新建爆款拆解'}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPostModalOpen(false)}
+                    className="p-1 text-zinc-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-4 text-xs">
+                  <div>
+                    <label className="block text-zinc-400 mb-1">视频标题 *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingPost.title}
+                      onChange={(e) => setEditingPost({ ...editingPost, title: e.target.value })}
+                      placeholder="例如：普通人如何用最新AI做动画微电影？"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 mb-1">所属对标博主</label>
+                      <select
+                        value={editingPost.competitorId}
+                        onChange={(e) => setEditingPost({ ...editingPost, competitorId: e.target.value })}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      >
+                        {competitors.map(c => (
+                          <option key={c.id} value={c.id}>{c.nickname} ({c.platform})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 mb-1">视频时长 (分:秒)</label>
+                      <input
+                        type="text"
+                        value={editingPost.duration}
+                        onChange={(e) => setEditingPost({ ...editingPost, duration: e.target.value })}
+                        placeholder="例如：01:45"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 mb-1">视频原链接 URL</label>
+                      <input
+                        type="text"
+                        value={editingPost.url}
+                        onChange={(e) => setEditingPost({ ...editingPost, url: e.target.value })}
+                        placeholder="https://..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 mb-1">封面图片 URL</label>
+                      <input
+                        type="text"
+                        value={editingPost.cover}
+                        onChange={(e) => setEditingPost({ ...editingPost, cover: e.target.value })}
+                        placeholder="https://..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">点赞量</label>
+                      <input
+                        type="number"
+                        value={editingPost.likes}
+                        onChange={(e) => setEditingPost({ ...editingPost, likes: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">收藏量</label>
+                      <input
+                        type="number"
+                        value={editingPost.collects}
+                        onChange={(e) => setEditingPost({ ...editingPost, collects: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">评论量</label>
+                      <input
+                        type="number"
+                        value={editingPost.comments}
+                        onChange={(e) => setEditingPost({ ...editingPost, comments: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">转发量</label>
+                      <input
+                        type="number"
+                        value={editingPost.shares}
+                        onChange={(e) => setEditingPost({ ...editingPost, shares: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-amber-400 font-medium mb-1">🔥 黄金开场吸睛钩子 (前3-5秒) *</label>
+                    <textarea
+                      rows={2}
+                      required
+                      value={editingPost.hookSnippet}
+                      onChange={(e) => setEditingPost({ ...editingPost, hookSnippet: e.target.value })}
+                      placeholder="摘录原视频前3-5秒打动人心的反常识观点或痛点喝止..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">📐 叙事结构骨架</label>
+                    <input
+                      type="text"
+                      value={editingPost.structure}
+                      onChange={(e) => setEditingPost({ ...editingPost, structure: e.target.value })}
+                      placeholder="【0-5s开场】→【6-25s反差】→【26-70s三步干货】→【结尾CTA】"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-emerald-400 mb-1">✨ 核心优点</label>
+                      <input
+                        type="text"
+                        value={editingPost.breakdownNotes?.advantages || ''}
+                        onChange={(e) => setEditingPost({
+                          ...editingPost,
+                          breakdownNotes: { ...editingPost.breakdownNotes, advantages: e.target.value }
+                        })}
+                        placeholder="例如：前3秒危机感拉满..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-blue-400 mb-1">💡 可复用点</label>
+                      <input
+                        type="text"
+                        value={editingPost.breakdownNotes?.reusablePoints || ''}
+                        onChange={(e) => setEditingPost({
+                          ...editingPost,
+                          breakdownNotes: { ...editingPost.breakdownNotes, reusablePoints: e.target.value }
+                        })}
+                        placeholder="例如：痛点否定+极低成本公式..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-rose-400 mb-1">⚠️ 避坑提醒</label>
+                      <input
+                        type="text"
+                        value={editingPost.breakdownNotes?.pitfalls || ''}
+                        onChange={(e) => setEditingPost({
+                          ...editingPost,
+                          breakdownNotes: { ...editingPost.breakdownNotes, pitfalls: e.target.value }
+                        })}
+                        placeholder="例如：参数过多导致流失..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-purple-400 mb-1">🎯 仿写方向</label>
+                      <input
+                        type="text"
+                        value={editingPost.breakdownNotes?.imitationDirection || ''}
+                        onChange={(e) => setEditingPost({
+                          ...editingPost,
+                          breakdownNotes: { ...editingPost.breakdownNotes, imitationDirection: e.target.value }
+                        })}
+                        placeholder="例如：套用在普通人搞钱选题..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 mb-1">📝 视频逐字稿 (AI转录文本)</label>
+                    <textarea
+                      rows={4}
+                      value={editingPost.transcript}
+                      onChange={(e) => setEditingPost({ ...editingPost, transcript: e.target.value })}
+                      placeholder="粘贴视频转写文字，写作时可在侧边栏对照参考..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white outline-none focus:border-emerald-500 leading-relaxed font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 mb-1">拆解标签 (顿号或空格隔开)</label>
+                    <input
+                      type="text"
+                      value={editingPost.tagsStr}
+                      onChange={(e) => setEditingPost({ ...editingPost, tagsStr: e.target.value })}
+                      placeholder="例如：钩子强、低粉爆款、适合口播"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-zinc-800 flex items-center justify-end space-x-3 bg-zinc-900">
+                  <button
+                    type="button"
+                    onClick={() => setPostModalOpen(false)}
+                    className="px-4 py-2 bg-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-700 transition"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs rounded-lg transition shadow"
+                  >
+                    保存拆解
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 对标账号编辑 / 添加弹窗 */}
+          {competitorModalOpen && editingCompetitor && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <form
+                onSubmit={handleSaveCompetitor}
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+              >
+                <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
+                  <h3 className="font-bold text-white text-sm">
+                    {editingCompetitor.id ? '编辑对标账号档案' : '新建对标账号'}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setCompetitorModalOpen(false)}
+                    className="p-1 text-zinc-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-4 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 mb-1">博主昵称 *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editingCompetitor.nickname}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, nickname: e.target.value })}
+                        placeholder="例如：科技星人 Leo"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 mb-1">发布平台</label>
+                      <select
+                        value={editingCompetitor.platform}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, platform: e.target.value })}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      >
+                        <option value="抖音">抖音</option>
+                        <option value="小红书">小红书</option>
+                        <option value="快手">快手</option>
+                        <option value="视频号">视频号</option>
+                        <option value="B站">B站</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 mb-1">对标等级</label>
+                      <select
+                        value={editingCompetitor.level}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, level: e.target.value })}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      >
+                        <option value="核心对标">核心对标</option>
+                        <option value="灵感参考">灵感参考</option>
+                        <option value="次要对标">次要对标</option>
+                        <option value="避雷账号">避雷账号</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 mb-1">所属文件夹 / 分组</label>
+                      <input
+                        type="text"
+                        value={editingCompetitor.folder}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, folder: e.target.value })}
+                        placeholder="例如：AI大模型与工具"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 mb-1">粉丝数量</label>
+                      <input
+                        type="number"
+                        value={editingCompetitor.fans}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, fans: Number(e.target.value) })}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 mb-1">总获赞数</label>
+                      <input
+                        type="number"
+                        value={editingCompetitor.totalLikes}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, totalLikes: Number(e.target.value) })}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">选题评分 (0-10)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        max="10"
+                        min="0"
+                        value={editingCompetitor.ratings?.topic || 8.0}
+                        onChange={(e) => setEditingCompetitor({
+                          ...editingCompetitor,
+                          ratings: { ...editingCompetitor.ratings, topic: Number(e.target.value) }
+                        })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">钩子评分 (0-10)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        max="10"
+                        min="0"
+                        value={editingCompetitor.ratings?.hook || 8.0}
+                        onChange={(e) => setEditingCompetitor({
+                          ...editingCompetitor,
+                          ratings: { ...editingCompetitor.ratings, hook: Number(e.target.value) }
+                        })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 text-[11px] mb-1">节奏评分 (0-10)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        max="10"
+                        min="0"
+                        value={editingCompetitor.ratings?.rhythm || 8.0}
+                        onChange={(e) => setEditingCompetitor({
+                          ...editingCompetitor,
+                          ratings: { ...editingCompetitor.ratings, rhythm: Number(e.target.value) }
+                        })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white font-mono outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 mb-1">赛道标签 (顿号或空格隔开)</label>
+                      <input
+                        type="text"
+                        value={editingCompetitor.trackTagsStr}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, trackTagsStr: e.target.value })}
+                        placeholder="例如：AI视觉、家居"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 mb-1">风格标签 (顿号或空格隔开)</label>
+                      <input
+                        type="text"
+                        value={editingCompetitor.styleTagsStr}
+                        onChange={(e) => setEditingCompetitor({ ...editingCompetitor, styleTagsStr: e.target.value })}
+                        placeholder="例如：短平快、高转化"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-400 mb-1">博主特点与拆解备注</label>
+                    <textarea
+                      rows={3}
+                      value={editingCompetitor.notes}
+                      onChange={(e) => setEditingCompetitor({ ...editingCompetitor, notes: e.target.value })}
+                      placeholder="记录该博主的优势、黄金开场技巧、运镜特点等..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white outline-none focus:border-emerald-500 leading-relaxed"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-zinc-800 flex items-center justify-end space-x-3 bg-zinc-900">
+                  <button
+                    type="button"
+                    onClick={() => setCompetitorModalOpen(false)}
+                    className="px-4 py-2 bg-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-700 transition"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs rounded-lg transition shadow"
+                  >
+                    保存账号档案
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 通过账号 ID / 链接一键添加弹窗 */}
+          {idImportModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <form
+                onSubmit={handleImportByAccountId}
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+              >
+                <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
+                  <div className="flex items-center space-x-2">
+                    <Icon name="link" className="w-4 h-4 text-emerald-400" />
+                    <h3 className="font-bold text-white text-sm">通过账号 ID / 链接快速添加</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIdImportModalOpen(false)}
+                    className="p-1 text-zinc-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4 text-xs">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      博主平台 (选填或自动识别)
+                    </label>
+                    <select
+                      value={importPlatformSelect}
+                      onChange={(e) => setImportPlatformSelect(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500"
+                    >
+                      <option value="自动识别">自动智能识别</option>
+                      <option value="抖音">抖音 (Douyin)</option>
+                      <option value="小红书">小红书 (RED)</option>
+                      <option value="快手">快手 (Kuaishou)</option>
+                      <option value="B站">哔哩哔哩 (Bilibili)</option>
+                      <option value="视频号">微信视频号</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      输入博主 ID 或个人主页链接 *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={importAccountIdInput}
+                      onChange={(e) => setImportAccountIdInput(e.target.value)}
+                      placeholder="支持格式示例：&#10;1. 账号唯一ID：leotech888 / red_100293&#10;2. 完整主页链接：https://v.douyin.com/xxxx 或 https://www.xiaohongshu.com/user/profile/xxxx"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white outline-none focus:border-emerald-500 leading-relaxed font-mono"
+                    />
+                  </div>
+
+                  <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-lg p-3 text-zinc-400 space-y-1 text-[11px]">
+                    <div className="text-emerald-400 font-medium flex items-center">
+                      <Icon name="sparkles" className="w-3.5 h-3.5 mr-1" /> 解析机制说明
+                    </div>
+                    <div>• 粘贴主页链接或账号 ID，系统将自动清洗参数、规范化主页地址并打上对应平台标识。</div>
+                    <div>• 成功收录后，您随时可点击卡片底部的“编辑博主”对博主昵称、粉丝和打分进行微调。</div>
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-zinc-800 flex items-center justify-end space-x-3 bg-zinc-900">
+                  <button
+                    type="button"
+                    onClick={() => setIdImportModalOpen(false)}
+                    className="px-4 py-2 bg-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-700 transition"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs rounded-lg transition shadow flex items-center space-x-1"
+                  >
+                    <Icon name="plus" className="w-3.5 h-3.5" />
+                    <span>解析并收录</span>
+                  </button>
+                </div>
+              </form>
             </div>
           )}
         </div>
